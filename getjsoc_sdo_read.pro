@@ -13,7 +13,7 @@
 
 function getjsoc_sdo_read, tstart, tend, cadence=cadence, timegrid=timegrid, $
 	getaia=getaia, gethmi=gethmi, getcont=getcont, wavelength=inwavelength, $
-	info_struct=info_struct, nodata=nodata, filelist=infilelist, calibrate=calibrate, rebin=rebin, _extra=_extra, outindex=indexarr, noaec=noaec
+	info_struct=info_struct, nodata=nodata, filelist=infilelist, calibrate=calibrate, rebin=rebin, _extra=_extra, outindex=indexarr, noaec=noaec, skipqualcheck=skipqualcheck
 
 if keyword_set(inwavelength) then wavelength=inwavelength else wavelength='171'
 
@@ -47,10 +47,16 @@ if keyword_set(getcont) then $
 if keyword_set(getaia) then $
 	ssw_jsoc_time2data,ttstart,ttend,indexarr,urls,/urls_only,cadence=cadence,wave=wavelength,/jsoc2,/local_files
 
+;Check for no data
+if data_type(indexarr) ne 8 then begin
+	print,'1: NO DATA FOUND'
+	return,''
+endif
+
 ;To filter out AEC auto exposure time scaling with AIA
 if keyword_set(noaec) then begin
 	wgood=where(indexarr.aectype le 1)
-	if wgood[0] eq -1 then begin & print,'1: No data with NOAEC available in time range!' & return,'' & endif
+	if wgood[0] eq -1 then begin & print,'2: No data with NOAEC available in time range!' & return,'' & endif
 	indexarr=indexarr[wgood]
 	urls=urls[wgood]
 endif
@@ -72,20 +78,22 @@ urlsloc=strmid(urls,26,200)
 urlslocexist=file_exist(urlsloc)
 
 ;flag where quality flag is not "good data"
-if keyword_set(gethmi) or keyword_set(getcont) then wgood=where(indexarr.quallev1 eq 0) $
-	else wgood=where(indexarr.QUALLEV0 eq 0)
+if not keyword_set(skipqualcheck) then begin
+   if keyword_set(gethmi) or keyword_set(getcont) then wgood=where(indexarr.quallev1 eq 0) $
+   	else wgood=where(indexarr.QUALLEV0 eq 0)
+
+   if wgood[0] eq -1 then begin
+      print,'3: NO GOOD FILES FOUND'
+      return,''
+   endif
+endif else wgood=findgen(nurls)
+
 urlsquality=fltarr(nurls)
-
-if wgood[0] eq -1 then begin
-	print,'2: NO GOOD FILES FOUND'
-	return,''
-endif
-
 urlsquality[wgood]=1
 
 ;filter out data tagged as "missing" (has missing date_obs?)
 if (where(urlsfdates ne 'MISSNG'))[0] eq -1 then begin
-	print,'3: ALL FILES MISSING'
+	print,'4: ALL FILES MISSING'
 endif
 wbad=where(urlsfdates eq 'MISSNG')
 if wbad[0] ne -1 then urlsquality[wbad]=0
@@ -139,7 +147,7 @@ if skipgetdata then read_sdo,filelist,index,data $
 	else read_sdo,thisurlloc,index_dum,data;,/useindex
 
 ;make data maps 
-	mindex2map,index,data,map
+	mindex2map,index,data,map,/nest
 
 ;DO CALIBRATION--------------------------------------------------------------->
 	if keyword_set(calibrate) then begin
@@ -148,7 +156,7 @@ if skipgetdata then read_sdo,filelist,index,data $
 ;				nocos=nocos, nofilter=nofilter, nofinite=nofinite, noofflimb=noofflimb, norotate=norotate
 		if keyword_set(getaia) then begin
 			aia_prep,index,data,_extra=_extra
-			mindex2map,index,data,map
+			mindex2map,index,data,map,/nest
 		endif
 		if keyword_set(getcont) then $
 			map=ar_processmag(map, _extra=_extra, /nocos, /nofilter, /noofflimb)
@@ -172,9 +180,14 @@ if skipgetdata then begin
 endif
 
 info_struct={date_obs:date_obs,coverage:coverage,flistrem:flistrem,flistloc:flistloc, $
-	obs_vr:obs_vr, dsun_obs:dsun_obs}
+	obs_vr:obs_vr, dsun_obs:dsun_obs, urltim:urltim, urlsfdates:urlsfdates, urlsloc:urlsloc, urlslocexist:urlslocexist, urlsquality:urlsquality}
 
-if nodata then return,''
+if nodata then return,indexarr
+
+if data_type(maparr) ne 8 then begin
+   print,'NO MAPS CONSTRUCTED!'
+   return,''
+endif
 
 outmap=maparr
 

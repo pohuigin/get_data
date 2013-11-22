@@ -91,7 +91,7 @@ if nodata then continue
 	read_sdo,thisurlloc,index_dum,data;,/useindex
 
 ;make data maps 
-	mindex2map,index,data,map
+	mindex2map,index,data,map,/nest
 
 ;DO CALIBRATION--------------------------------------------------------------->
 	if keyword_set(calibrate) then begin

@@ -28,12 +28,18 @@ if skiplistfiles then goto,go_skiplistfiles
 
 ;Get EUVI file list
 if keyword_set(a_sc) then $
-	filelist=secchi_time2files(ttstart,ttend,/euvi,/ahead,/lz,dtype='img',pattern='*[1-7]euA.fts',parent='/archive1/stereo')
+	filelist=secchi_time2files(ttstart,ttend,/euvi,/ahead,/lz,dtype='img',pattern='*euA.fts',parent='/archive1/stereo')
 
 if keyword_set(b_sc) then $
-	filelist=secchi_time2files(ttstart,ttend,/euvi,/behind,/lz,dtype='img',pattern='*[1-7]euB.fts',parent='/archive1/stereo')
+	filelist=secchi_time2files(ttstart,ttend,/euvi,/behind,/lz,dtype='img',pattern='*euB.fts',parent='/archive1/stereo')
 
 ;/archive1/stereo/lz/L0/a/img/euvi/20130421/20130421_234030_n4euA.fts
+
+;!!!SECCHI CAT does not appear to exist anymore!!! WTF!!
+
+;s=['wavelnth='+strtrim(wavelength,2),'beacon=0']
+;if keyword_set(a_sc) then secchi_cat,ttstart,ttend,cat,filelist,search=s,/summary,/ahead,/euvi,count=count
+;if keyword_set(b_sc) then secchi_cat,ttstart,ttend,cat,filelist,search=s,/summary,/behind,/euvi,count=count
 
 ;data=sccreadfits(filelist,index)
 
@@ -43,6 +49,10 @@ read_sdo,filelist,index,/nodata
 
 ;CHECK FOR MISSING FILES------------------------------------------------------>
 if not keyword_set(skipmisscheck) then begin
+   	if data_type(index) ne 8 then begin
+		print,'NO FILES FOUND?'
+		return,''
+	endif
 	wgood=where(index.nmissing eq 0)
 	if wgood[0] eq -1 then begin
 		print,'NO GOOD FILES FOUND!'
@@ -70,12 +80,13 @@ if keyword_set(nodata) then return,filelist
 go_skiplistfiles:
 
 if keyword_set(calibrate) then $
-	secchi_prep,filelist,index,data,/rotate_on,/rotatein,outs=outsize;[1024,1024]
-
+	secchi_prep,filelist,index,data,/rotate_on,/rotatein,outs=outsize $;[1024,1024]
+	else read_sdo,filelist,index,data
+	
 nmap=n_elements(index)
 for i=0,nmap-1 do begin
 
-	mindex2map,index[i],data[*,*,i],map
+	mindex2map,index[i],data[*,*,i],map,/nest
 
 	if data_Type(maparr) ne 8 then maparr=map $
 		else maparr=[maparr,map]
